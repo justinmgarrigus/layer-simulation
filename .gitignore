@@ -7,3 +7,5 @@ models/
 *.ptxas
 *.icnt 
 *.1
+_app_cuda_version_*
+_cuobjdump_list_ptx_*

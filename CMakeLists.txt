@@ -19,10 +19,16 @@ target_link_libraries(${PROJECT_NAME} PRIVATE CUDA::cudart)
 add_subdirectory(external)
 target_link_libraries(${PROJECT_NAME} PRIVATE nvidia::cutlass)
 target_include_directories(${PROJECT_NAME} PRIVATE $ENV{CUTLASS_INSTALL_DIR})
+message($ENV{CUTLASS_INSTALL_DIR}) 
 
 # This probably isn't the best method of doing this, but it's easy! 
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/models/yolov5l-cls.pt")
     execute_process(COMMAND wget --no-verbose 
         https://github.com/ultralytics/yolov5/releases/download/v6.2/yolov5l-cls.pt 
         -P ${CMAKE_SOURCE_DIR}/models/) 
-endif() 
+endif()
+
+execute_process(COMMAND pip install 
+    git+https://github.com/nottombrown/imagenet_stubs) 
+execute_process(COMMAND pip install -r 
+    https://raw.githubusercontent.com/ultralytics/yolov5/master/requirements.txt)
