@@ -1,0 +1,8 @@
+gpgpusim.config
+output/
+bin/
+build/
+*.ptx
+*.ptxas
+*.icnt 
+*.1
