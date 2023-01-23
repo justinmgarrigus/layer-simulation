@@ -22,7 +22,9 @@ cmake ..
 make
 ```
 
-Run the project: 
+## Run
+
+Run the project with: 
 
 `python3 run.py -alexnet`
 
