@@ -1,0 +1,7 @@
+imagenet_stubs==0.0.7
+numpy==1.23.2
+Pillow==9.2.0
+torch==1.12.1
+torchvision==0.13.1
+
+pip3 install git+https://github.com/nottombrown/imagenet_stubs
