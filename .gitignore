@@ -2,6 +2,7 @@ gpgpusim.config
 output/
 bin/
 build/
+models/
 *.ptx
 *.ptxas
 *.icnt 
