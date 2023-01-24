@@ -1,18 +1,20 @@
 #!/bin/bash
 
 # single.sh: Runs the gemm executable on a batch of files. File batches are 
-#   passed in either through: (1) standard input, or (2) through a file. File 
-#   batches must follow the format of "<weight input file> <x input file> 
-#   <result output file> <error output file> <time output file>", where each 
-#   file is a string and files are separated by one space. 
+#   passed in either through: (1) standard input, or (2) command-line 
+#   arguments. File batches must follow the format of "<weight input file> 
+#   <x input file> <result output file> <error output file> 
+#   <time output file>", where each file is a string and files are separated by 
+#   one space.
 # Execute: 
-#   ./single.sh <batch_files_table.txt>
+#   ./single.sh
+#   ./single.sh <model_name> <layer_index>
 
 
 if [ ! -d "/bin" ]
 then
-	echo "No bin directory exists! Run the project with 'python3 run.py'"
-	exit 1
+    echo "No bin directory exists! Run the project with 'python3 run.py'"
+    exit 1
 fi
 
 # Processes a batch of files. Five parameters must be passed in: 
@@ -21,37 +23,25 @@ fi
 #   3: result output file 
 #   4: error output file 
 #   5: time output file
-process_batch() {
-    echo $#
-    echo $0 
-    echo $1
-    exit 0  # TODO: Make sure that arguments work the way you think they will.
+function process_batch() {
+    echo -n "weights: $1, x: $2, results: $3, errors: $4, time: $5 ... "
 
-	parts=($line)
-
-    weight_file=${parts[0]} 
-    x_file=${parts[1]} 
-    result_file=${parts[2]} 
-    error_file=${parts[3]} 
-    time_file=${parts[4]} 
-
-	echo -n "weights: ${weight_file}, x: ${x_file} " 
-    echo -n "results: ${result_file}, errors: ${error_file} "
-    echo -n "time: ${time_file} ... "
-
-	start_time=$(date +%s)
-
-	./build/gemm --w ${weight_file} --x ${x_file} \
-        > ${result_file} 2> ${error_file}
-	
+    if [ ! -f $1 ] || [ ! -f $2 ] 
+    then 
+        echo -e "\nError: weight file and input(x) file must both exist!" 
+        exit 1 
+    fi 
+    
+    start_time=$(date +%s)
+    ./build/gemm --w $1 --x $2 > $3 2> $4
     end_time=$(date +%s)
-	duration=$((end_time-start_time))
+    duration=$((end_time-start_time))
 
-	echo "Start: ${start_time}" > ${time_file}
-	echo "End: ${end_time}" >> ${time_file}
-	echo "Duration: ${duration}" >> ${time_file}
+    echo "Start: ${start_time}" > ${time_file}
+    echo "End: ${end_time}" >> ${time_file}
+    echo "Duration: ${duration}" >> ${time_file}
 
-	echo "Done"
+    echo "Done"
 }
 
 if [ $# -eq 2 ]
@@ -60,31 +50,40 @@ then
     # User wants to only process one batch, where arguments are in the format
     # of "<model name> <layer number>" 
     
-    if [ ! -f "layer_index.txt" ] 
+    range=$(find bin/$1 -name 'x_*' | wc -l) 
+    if [ $2 -le 0 ] || [ $2 -gt ${range} ]
     then 
-        echo -n "No layer index exists! A file named 'layer_index.txt' must " 
-        echo "contain each parameter." 
+        echo "Error: index of $2 is out of range for model $1 (${range})" 
         exit 1 
     fi
 
-    layers=$(grep $1 layer_index.txt)
-    line=$(echo ${layers} | sed "$2q;")
+    x_file=$(basename $(find bin/$1 -name 'x_*' | sort | sed -n $2p))
+    layer_name=${x_file:2} # removes 'x_' from beginning
+    layer_name="${layer_name%.*}" # removes file extension
 
-    echo "Arg: $1" 
-    echo "Line: '${line}'"
-    echo "Layers: '${layers}'" 
-    echo "Match: $2q;d"
-    exit 0 
+    x_file="bin/$1/x_${layer_name}.bin" 
+    weight_file="bin/$1/weight_${layer_name}.bin"
+    result_file="output/$1/simResults_${layer_name}.txt"
+    error_file="output/$1/simErrors_${layer_name}.txt" 
+    time_file="output/$1/time_${layer_name}.txt" 
+    
+    process_batch      \
+        ${weight_file} \
+        ${x_file}      \
+        ${result_file} \
+        ${error_file}  \
+        ${time_file}   
+
+else 
+
+    # Run in interactive mode, pulling from stdin. Lines inputted must follow
+    # the format of: 
+    #   <weight_file> <x_file> <result_file> <error_file> <time_file> 
+
+    while read -r line
+    do 
+        parts=($line)
+        process_batch ${parts[@]} 
+    done
+        
 fi 
-
-
-if [ $# -eq 1 ]
-    # User passed in a file containing
-fi 
-
-if [ $# -ge 1 -a -f "$1" ] && input="$1" || input="-"
-
-for line in $(cat "$input") 
-do
-
-done
