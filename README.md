@@ -32,19 +32,19 @@ To run a classification on an image or set of images (where each layer is execut
 
 `$ python3 run.py <model_type>`
 
-The different modeltype's are: 
-* -alexnet 
-* -resnet18
-* -vgg16 
-* -yolov5l
+The different model_type's are: 
+* `-alexnet` 
+* `-resnet18`
+* `-vgg16`
+* `-yolov5l`
 
 ### Single
 
-To run a single layer on a given model, first generate the `.bin` files as above. `.bin` files should be placed in the directory `data/<model_type>/<x,weight>_cL<index>.bin` (this step is automatically performed during the classification step. Then, run the following command: 
+To run a single layer on a given model, first generate the `.bin` files as above. Then, run the following command: 
 
 `$ ./single.sh <model_type> <layer_index>` 
 
-In this command, `layer_index` is dependent on the model chosen in the range `[1, len(model.layers)]`.
+In this command, `layer_index` is dependent on the model, and should be chosen in the range `[1, len(model.layers)]`.
 
 ## Verification 
 
