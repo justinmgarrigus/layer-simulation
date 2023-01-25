@@ -28,7 +28,7 @@ There are multiple ways to run the project:
 
 ### Classification
 
-To run a classification on an image or set of images (where each layer is executed sequentially, generating .bin files along the way), place `.jpg` files into the `data` directory and run: 
+To run a classification on an image or set of images (where each layer is executed sequentially, generating `.bin` files along the way), place `.jpg` files into the `data` directory and run: 
 
 `$ python3 run.py <model_type>`
 
