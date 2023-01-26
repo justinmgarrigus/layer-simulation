@@ -32,6 +32,10 @@ function process_batch() {
         exit 1 
     fi 
     
+    mkdir -p $(dirname $3)
+    mkdir -p $(dirname $4)
+    mkdir -p $(dirname $5) 
+    
     start_time=$(date +%s)
     ./build/gemm --w $1 --x $2 > $3 2> $4
     end_time=$(date +%s)
@@ -51,7 +55,12 @@ then
     # of "<model name> <layer number>" 
     
     range=$(find bin/$1 -name 'x_*' | wc -l) 
-    if [ $2 -le 0 ] || [ $2 -gt ${range} ]
+    if [ ${range} -eq 0 ]
+    then 
+        echo -n "Error: either no bin files exist, or the model name does not " 
+        echo "match a directory specified in the 'bin' directory."
+        exit 1 
+    elif [ $2 -le 0 ] || [ $2 -gt ${range} ]
     then 
         echo "Error: index of $2 is out of range for model $1 (${range})" 
         exit 1 
@@ -66,7 +75,7 @@ then
     result_file="output/$1/simResults_${layer_name}.txt"
     error_file="output/$1/simErrors_${layer_name}.txt" 
     time_file="output/$1/time_${layer_name}.txt" 
-    
+        
     process_batch      \
         ${weight_file} \
         ${x_file}      \
