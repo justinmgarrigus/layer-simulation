@@ -9,3 +9,10 @@ models/
 *.1
 _app_cuda_version_*
 _cuobjdump_list_ptx_*
+gpgpu_inst_stats.txt 
+packetWatchOut_.txt
+
+slurm/*/.commands*
+slurm/*/.env 
+slurm/*/lines
+slurm/*/trace
