@@ -8,6 +8,7 @@
 #include <getopt.h>
 #include <iostream>
 #include <string>
+#include <cmath>
 
 class Matrix {
 public:
@@ -119,13 +120,19 @@ int main(int argc, char **argv) {
     option const long_opts[] = {
         { "x", required_argument, nullptr, 'x' },
         { "w", required_argument, nullptr, 'w' },
+        { "o", required_argument, nullptr, 'o' }, 
+        { "c", no_argument, nullptr, 'c' }, // compare "x" and "w"
         { nullptr, no_argument, nullptr, 0 },
     };
 
     Matrix w, x;
+    std::string output_file_dir("bin/gemm.bin"); 
+
+    // 0 if we do NOT compare matrices (standard gemm), 1 if we DO. 
+    int compare_matrices = 0;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "w:x:", long_opts, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "w:x:o:c:", long_opts, nullptr)) != -1) {
         switch (opt) {
         case 'w':
             w.load(optarg);
@@ -133,51 +140,69 @@ int main(int argc, char **argv) {
         case 'x':
             x.load(optarg);
             break;
+        case 'o': 
+            output_file_dir = std::string(optarg);
+            break; 
+        case 'c':
+            compare_matrices = 1; 
+            break; 
         }
     }
-    assert(w.cols() == x.rows());
-
-    cutlass::HostMatrixRowMajor<cutlass::half_t> A(cutlass::MatrixCoord(w.rows(), w.cols()));
-    for (size_t i = 0; i < w.rows() * w.cols(); ++i) {
-        A.host_data()[i] = cutlass::half_t::convert(w[i]);
+    
+    if (compare_matrices) {
+        assert(w.rows() == x.rows() && w.cols() == x.cols()); 
+        
+        float distance = 0;
+        for (int i = 0; i < w.rows() * w.cols(); i++)
+            distance += std::abs(w[i] - x[i]); 
+        
+        fprintf(stdout, "%f\n", distance); 
     }
-    A.sync_device();
-
-    cutlass::HostMatrixRowMajor<cutlass::half_t> B(cutlass::MatrixCoord(x.rows(), x.cols()));
-    for (size_t i = 0; i < x.rows() * x.cols(); ++i) {
-        B.host_data()[i] = cutlass::half_t::convert(x[i]);
-    }
-    B.sync_device();
-
-    cutlass::HostMatrix<float> C(cutlass::MatrixCoord(w.rows(), x.cols()));
-
-    params.initialize(
-        w.rows(),
-        x.cols(),
-        w.cols(),
-        1.0f,
-        A.device_data(),
-        A.leading_dim(),
-        B.device_data(),
-        B.leading_dim(),
-        0.0f,
-        C.device_data(),
-        C.leading_dim(),
-        C.device_data(),
-        C.leading_dim()
-    );
-
-    Gemm::launch(params);
-    C.sync_host();
-
-    Matrix gemm(w.rows(), x.cols());
-
-    // Convert back to row-major
-    for (size_t i = 0; i < gemm.rows(); ++i) {
-        for (size_t j = 0; j < gemm.cols(); ++j) {
-            gemm[i * gemm.cols() + j] = C.host_data()[j * gemm.rows() + i];
+    else {
+        assert(w.cols() == x.rows());
+    
+        cutlass::HostMatrixRowMajor<cutlass::half_t> A(cutlass::MatrixCoord(w.rows(), w.cols()));
+        for (size_t i = 0; i < w.rows() * w.cols(); ++i) {
+            A.host_data()[i] = cutlass::half_t::convert(w[i]);
         }
+        A.sync_device();
+    
+        cutlass::HostMatrixRowMajor<cutlass::half_t> B(cutlass::MatrixCoord(x.rows(), x.cols()));
+        for (size_t i = 0; i < x.rows() * x.cols(); ++i) {
+            B.host_data()[i] = cutlass::half_t::convert(x[i]);
+        }
+        B.sync_device();
+    
+        cutlass::HostMatrix<float> C(cutlass::MatrixCoord(w.rows(), x.cols()));
+    
+        params.initialize(
+            w.rows(),
+            x.cols(),
+            w.cols(),
+            1.0f,
+            A.device_data(),
+            A.leading_dim(),
+            B.device_data(),
+            B.leading_dim(),
+            0.0f,
+            C.device_data(),
+            C.leading_dim(),
+            C.device_data(),
+            C.leading_dim()
+        );
+    
+        Gemm::launch(params);
+        C.sync_host();
+    
+        Matrix gemm(w.rows(), x.cols());
+    
+        // Convert back to row-major
+        for (size_t i = 0; i < gemm.rows(); ++i) {
+            for (size_t j = 0; j < gemm.cols(); ++j) {
+                gemm[i * gemm.cols() + j] = C.host_data()[j * gemm.rows() + i];
+            }
+        }
+        
+        gemm.save(output_file_dir);
     }
-
-    gemm.save("bin/gemm.bin");
 }

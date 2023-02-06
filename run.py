@@ -458,7 +458,7 @@ def pad_matrix(x) -> torch.Tensor:
     return x
 
 
-def conv2d(x, filePath, module) -> torch.Tensor:
+def conv2d(x, layer_name, module) -> torch.Tensor:
     weight = module.weight.detach()
     x = x.detach()
 
@@ -485,32 +485,37 @@ def conv2d(x, filePath, module) -> torch.Tensor:
 
     weight = pad_matrix(weight)
     x = pad_matrix(x)
+    
+    weight_file_path = f'bin/{MODEL_NAME}/weight/{layer_name}.bin'
+    save_matrix(weight, weight_file_path) 
+    
+    x_file_path = f'bin/{MODEL_NAME}/x/{layer_name}.bin'
+    save_matrix(x, x_file_path)
 
-    weightFilePath = "bin/" + MODEL_NAME + "/weight_" + filePath + ".bin"
-    xFilePath = "bin/" + MODEL_NAME + "/x_" + filePath + ".bin"
-    save_matrix(weight, weightFilePath)
-    save_matrix(x, xFilePath)
-
-    outputFilePath = "output/" + MODEL_NAME + "/simResults_" + filePath + ".txt"
-    errFilePath = "output/" + MODEL_NAME + "/simErrors_" + filePath + ".txt"
-    outputFile = open(outputFilePath, "w")
-    errFile = open(errFilePath, "w")
-
-    result = subprocess.run(["./build/gemm", 
-                                "--w", 
-                                weightFilePath,
-                                "--x", 
-                                xFilePath], 
-                            stdout=outputFile, 
-                            stderr=errFile)
-    # subprocess.STDOUT
-
-    print(result)
-
-    x = load_matrix("bin/gemm.bin")
-    gemmFilePath = "bin/" + MODEL_NAME + "/gemm_" + filePath + ".bin"
-    save_matrix(x, gemmFilePath) # save for tracing
-
+    output_file_path = f'output/{MODEL_NAME}/result/{layer_name}.txt'
+    output_file = open(output_file_path, 'w') 
+    
+    error_file_path = f'output/{MODEL_NAME}/error/{layer_name}.txt'
+    error_file = open(error_file_path, 'w')
+    
+    gemm_file_path = f'bin/{MODEL_NAME}/gemm/{layer_name}.bin' 
+    print(f'Starting gemm on layer "{layer_name}"')
+    subprocess.run(
+        [
+            "./build/gemm", 
+            "--w", 
+            weight_file_path,
+            "--x", 
+            x_file_path, 
+            "--o", 
+            gemm_file_path
+        ], 
+        stdout=output_file, 
+        stderr=error_file
+    )
+    print(f'Finished gemm on layer "{layer_name}"') 
+    x = load_matrix(gemm_file_path) 
+    
     x = torch.stack(torch.chunk(x[:h, :w], chunks=out_n, dim=1))
     x = x.view(out_n, out_c, out_h, out_w)
 
@@ -574,14 +579,20 @@ if __name__ == "__main__":
         sys.exit(1) 
         
     # Output bin files are stored within the bin directory. 
-    if not os.path.exists('bin'): 
-        os.mkdir('bin') 
-    if not os.path.exists('bin/' + MODEL_NAME):
-        os.mkdir('bin/' + MODEL_NAME) 
-    if not os.path.exists('output'):
-        os.mkdir('output') 
-    if not os.path.exists('output/' + MODEL_NAME): 
-        os.mkdir('output/' + MODEL_NAME) 
+    required_dirs = [
+        'bin', 
+        'bin/' + MODEL_NAME, 
+        'bin/' + MODEL_NAME + '/weight', 
+        'bin/' + MODEL_NAME + '/x', 
+        'bin/' + MODEL_NAME + '/gemm', 
+        'output', 
+        'output/' + MODEL_NAME, 
+        'output/' + MODEL_NAME + '/result', 
+        'output/' + MODEL_NAME + '/error'
+    ]
+    for required_dir in required_dirs: 
+        if not os.path.exists(required_dir): 
+            os.mkdir(required_dir) 
     
     # Models are callable: this runs an inference on the images. 
     dataset = torch.stack(images)
