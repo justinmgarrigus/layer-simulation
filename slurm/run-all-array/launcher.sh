@@ -30,7 +30,9 @@ islip_icnt_file=$sim_path/configs/SM70_TitanV_mesh_baseline/config_volta_islip.i
 # The path to the singularity image that will be used 
 singularity_path=$WORK/kldh-unt-gpgpusim_cuda9010v3.sif
 
-# The path to where the trace files will be stored. TODO 
+# The path to where the trace files will be stored. Each thread will create
+# their own directory within this one, which they will run the project in 
+# reference towards. 
 trace_path=$(pwd)/trace
 
 # Which layers within the network will be run. These in reference to the order
@@ -40,7 +42,7 @@ trace_path=$(pwd)/trace
 abs_layers=({1..98})
 
 # Email address to send updates to (optional) 
-email=justingarrigus@my.unt.edu
+email=
 
 
 ################
