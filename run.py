@@ -28,7 +28,11 @@ from torchvision import models as M
 
 from PIL import Image
 
-MODEL_NAME = '' # For convenience, this is global
+# For convenience, these are global. Precondition: This program cannot run more
+# than one inference. One call of conv2d() will increment CURRENT_INDEX.
+MODEL_NAME = '' 
+START_INDEX = 1 
+CURRENT_INDEX = 1 
 
 
 class resnet18:
@@ -194,7 +198,11 @@ class resnet18:
         
         
     def __repr__(self): 
-        return repr(self.model) 
+        return repr(self.model)
+
+
+    def __len__(self):
+        return 20 
 
 
 class vgg16:
@@ -290,6 +298,10 @@ class vgg16:
         
     def __repr__(self): 
         return repr(self.model) 
+
+
+    def __len__(self): 
+        return 13 
         
         
 class alexnet:
@@ -350,7 +362,11 @@ class alexnet:
         
         
     def __repr__(self): 
-        return repr(self.model) 
+        return repr(self.model)
+
+
+    def __len__(self): 
+        return 5 
         
         
 class yolo:
@@ -419,6 +435,10 @@ class yolo:
         return repr(self.model) 
 
 
+    def __len__(self): 
+        return 60 
+
+
 def save_matrix(x, fpath):
     assert x.dim() == 2
 
@@ -459,6 +479,14 @@ def pad_matrix(x) -> torch.Tensor:
 
 
 def conv2d(x, layer_name, module) -> torch.Tensor:
+    global MODEL_NAME 
+    global START_INDEX
+    global CURRENT_INDEX 
+
+    # Either the (1) output directory of the convolution operation or 
+    # (2) location of the cached convolution from a previous execution. 
+    gemm_file_path = f'bin/{MODEL_NAME}/gemm/{layer_name}.bin' 
+
     weight = module.weight.detach()
     x = x.detach()
 
@@ -485,35 +513,38 @@ def conv2d(x, layer_name, module) -> torch.Tensor:
 
     weight = pad_matrix(weight)
     x = pad_matrix(x)
-    
-    weight_file_path = f'bin/{MODEL_NAME}/weight/{layer_name}.bin'
-    save_matrix(weight, weight_file_path) 
-    
-    x_file_path = f'bin/{MODEL_NAME}/x/{layer_name}.bin'
-    save_matrix(x, x_file_path)
 
-    output_file_path = f'output/{MODEL_NAME}/result/{layer_name}.txt'
-    output_file = open(output_file_path, 'w') 
+
+    if START_INDEX <= CURRENT_INDEX:
+        # We don't need to use cached conv outputs, so calculate the conv.         
+        weight_file_path = f'bin/{MODEL_NAME}/weight/{layer_name}.bin'
+        save_matrix(weight, weight_file_path) 
+        
+        x_file_path = f'bin/{MODEL_NAME}/x/{layer_name}.bin'
+        save_matrix(x, x_file_path)
     
-    error_file_path = f'output/{MODEL_NAME}/error/{layer_name}.txt'
-    error_file = open(error_file_path, 'w')
+        output_file_path = f'output/{MODEL_NAME}/result/{layer_name}.txt'
+        output_file = open(output_file_path, 'w') 
+        
+        error_file_path = f'output/{MODEL_NAME}/error/{layer_name}.txt'
+        error_file = open(error_file_path, 'w')
+        
+        print(f'Starting gemm on layer "{layer_name}"')
+        subprocess.run(
+            [
+                "./build/gemm", 
+                "--w", 
+                weight_file_path,
+                "--x", 
+                x_file_path, 
+                "--o", 
+                gemm_file_path
+            ], 
+            stdout=output_file, 
+            stderr=error_file
+        )
+        print(f'Finished gemm on layer "{layer_name}"') 
     
-    gemm_file_path = f'bin/{MODEL_NAME}/gemm/{layer_name}.bin' 
-    print(f'Starting gemm on layer "{layer_name}"')
-    subprocess.run(
-        [
-            "./build/gemm", 
-            "--w", 
-            weight_file_path,
-            "--x", 
-            x_file_path, 
-            "--o", 
-            gemm_file_path
-        ], 
-        stdout=output_file, 
-        stderr=error_file
-    )
-    print(f'Finished gemm on layer "{layer_name}"') 
     x = load_matrix(gemm_file_path) 
     
     x = torch.stack(torch.chunk(x[:h, :w], chunks=out_n, dim=1))
@@ -527,17 +558,27 @@ def conv2d(x, layer_name, module) -> torch.Tensor:
 
             x = x.add(bias)
 
+    CURRENT_INDEX += 1 
     return x
 
 
 if __name__ == "__main__":
     
-    # python3 run.py <model type>
+    # python3 run.py <model type> [<index>]
     #   <model type> is a string, can possibly start with a dash "-", and must 
-    #   be either "resnet18"/"resnet", "vgg16"/"vgg", "alexnet", or 
-    #   "yolov5l"/"yolo"
+    #     be either "resnet18"/"resnet", "vgg16"/"vgg", "alexnet", or 
+    #     "yolov5l"/"yolo".
+    #   <index> is an optional int; if specified, the program will start 
+    #     execution on the layer specified by it. It is implicitly assumed to 
+    #     be 1 if not specified.
     
-    name = sys.argv[-1].lower()
+    if len(sys.argv) < 2 or len(sys.argv) > 3: 
+        out = 'Error: Incorrect number of arguments. Must contain a model ' \
+              'name and (optionally) an index.'
+        print(out) 
+        sys.exit(1)
+    
+    name = sys.argv[1].lower()
     while name.startswith('-'): name = name[1:] 
     
     if name == 'resnet18' or name == 'resnet':
@@ -560,6 +601,35 @@ if __name__ == "__main__":
     
     print(model) 
     
+    if len(sys.argv) == 3: 
+        try: 
+            START_INDEX = int(sys.argv[2]) 
+        except ValueError: 
+            START_INDEX = None 
+                    
+        if START_INDEX is None or START_INDEX < 1 or START_INDEX > len(model): 
+           out = f'Error: starting index "{sys.argv[2]}" must be an integer ' \
+                  'in range [1, len(model)]' 
+           print(out)
+           sys.exit(1)
+
+        bin_path = 'bin/' + MODEL_NAME + '/gemm'
+        if START_INDEX > 1 and not os.path.exists(bin_path): 
+            out = f'Error: if using a different starting index, then bin ' \
+                  f'files must exist in the "{bin_path}" directory. Run the ' \
+                  f'project at least once on model {MODEL_NAME} up to layer ' \
+                  f'{START_INDEX}.'
+            print(out)
+            sys.exit(1) 
+
+    else: 
+        START_INDEX = 1 # i.e., we start at the first layer/beginning of model
+    
+    # This program needs to proceed through each layer doing PyTorch functions 
+    # even though they don't affect the output if START_INDEX != 1. This should
+    # be changed in the future, TODO. 
+    CURRENT_INDEX = 1
+
     # Images are stored within the "data" directory.
     filenames = []
     images    = []  
