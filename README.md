@@ -53,3 +53,17 @@ After executing a classification or a collection of single's (see the `Run` sect
 `$ ./end-verify.sh` 
 
 This outputs whether or not the error files (e.g., `output/alexnet/simErrors_cL1_.txt`) are empty, indicating that there were no errors that occured during execution, as well as the time that each layer/model took to run (assuming a sequential execution). 
+
+## Sub-build
+
+Sub-builds are copies of the project, in which each sub-build contains only a single test image. We can fill the base "data/" directory with ".jpg" images, and then create sub-builds with: 
+
+`$ ./sub-run.sh -c`
+
+This creates several new directories underneath the "sub-builds/" directory. Each sub-build contains the same files as the main directory (except for files beginning with a dot like ".git/"), but the "sub-builds/*/data/" directory will contain only a single image.
+
+After sub-builds are created, we can run a command across every sub-build with: 
+
+`$ ./sub-run.sh -e "command"`
+
+For instance, we can test if this works with `./sub-run.sh -e "pwd"` to print each sub-build directory. We can run an inference on alexnet for each sub-build (one inference per image) with `./sub-run.sh -e "python3 run.py alexnet > run.out"`.
