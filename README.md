@@ -30,13 +30,25 @@ There are multiple ways to run the project:
 
 To run a classification on an image or set of images (where each layer is executed sequentially, generating `.bin` files along the way), place `.jpg` files into the `data` directory and run: 
 
-`$ python3 run.py <model_type>`
+`$ python3 run.py <model_type> (<layer_index>) (--zero_type=<zero_type> --epsilon=<epsilon>)`
 
-The different model_type's are: 
+Parameters: 
+
+model_type: 
 * `-alexnet` 
 * `-resnet18`
 * `-vgg16`
 * `-yolov5l`
+
+`layer_index`: The conv operator index in the model to start computation at. If not provided, equals 1. To skip the first _n_ convolutional operations in a network, set this to _n+1_. 
+
+`zero_type`: Before tensors are passed to the convolution function, they can be preprocessed by setting values to zero if they are less than a threshold. This flag determines which tensors to preprocess in this way: 
+* `none`: No values in tensors are zeroed.
+* `input`: The input tensors to each conv2D operation has values which are zeroed.
+* `weight`: The weight tensors to each conv2D operation has values which are zeroed.
+* `both`: Both the input and the weight tensors to each conv2D operation has values which are zeroed.
+
+`epsilon`: Must be a valid floating-point number. If `zero_type` is not equal to "`none`", this is the threshold that determines if a tensor value should be set to 0. Before a convolution operation is applied, we loop through every value in the tensor. If a value is less than or equal to `epsilon`, that value is replaced with zero.
 
 ### Single
 
