@@ -4,13 +4,32 @@ yielding a collection of named .bin files representing inputs/outputs to
 convolution layers. 
 
 Usage: 
-  python3 run.py <model type> 
+  python3 run.py <model_type> (<index>) (--zero_type=<zero_type>) 
+    (--epsilon=<float>)
 
-Model types: 
-  -resnet18 
-  -vgg16 
-  -alexnet
-  -yolov5l
+Parameters: 
+  <model_type>: 
+    -resnet18
+    -vgg16 
+    -alexnet
+    -yolov5l
+
+  <index>: the conv operator index in the model to start computation at.
+    If not provided, equals 1. To skip the first <n> convolutional operations, 
+    set <index> to <n+1>.
+
+  <zero_type>: 
+    none: no values are zeroed
+    input: the input tensors to each conv2D operation has values zeroed
+    weight: the weight tensors to each conv2D operation has values zeroed
+    both: both the input and weight tensors to each conv2D operation has 
+      values zeroed
+
+  <epsilon>: the threshold that determines if a value is zeroed or not. If 
+    zero_type is not "none", then the input and/or weight tensor is scanned 
+    before being passed to the conv2D operator. For-each value in the tensor, 
+    if the value is less than or equal to epsilon, the value is replaced with 
+    zero.
 '''
 
 import sys 
@@ -33,6 +52,11 @@ from PIL import Image
 MODEL_NAME = '' 
 START_INDEX = 1 
 CURRENT_INDEX = 1 
+
+# If ZERO_TYPE isn't "none", then if a value in input and/or weight tensors are
+# less than or equal to EPSILON, they get set to zero.
+ZERO_TYPE = 'none' 
+EPSILON = 0
 
 
 class resnet18:
@@ -514,8 +538,14 @@ def conv2d(x, layer_name, module) -> torch.Tensor:
     weight = pad_matrix(weight)
     x = pad_matrix(x)
 
-
     if START_INDEX <= CURRENT_INDEX:
+        # Preprocess the matrices given the passed arguments by removing values
+        # from the tensors if they're less than or equal to EPSILON
+        if ZERO_TYPE in ('both', 'weight'): 
+            weight = torch.where(torch.abs(weight) <= EPSILON, 0, weight)
+        if ZERO_TYPE in ('both', 'input'): 
+            x = torch.where(torch.abs(x) <= EPSILON, 0, x) 
+
         # We don't need to use cached conv outputs, so calculate the conv.         
         weight_file_path = f'bin/{MODEL_NAME}/weight/{layer_name}.bin'
         save_matrix(weight, weight_file_path) 
@@ -572,11 +602,9 @@ if __name__ == "__main__":
     #     execution on the layer specified by it. It is implicitly assumed to 
     #     be 1 if not specified.
     
-    if len(sys.argv) < 2 or len(sys.argv) > 3: 
-        out = 'Error: Incorrect number of arguments. Must contain a model ' \
-              'name and (optionally) an index.'
-        print(out) 
-        sys.exit(1)
+    if len(sys.argv) == 1: 
+        print('Error: must specify model (alexnet, resnet18, vgg16, yolov5l')
+        sys.exit(1) 
     
     name = sys.argv[1].lower()
     while name.startswith('-'): name = name[1:] 
@@ -601,13 +629,12 @@ if __name__ == "__main__":
     
     print(model) 
     
-    if len(sys.argv) == 3: 
-        try: 
-            START_INDEX = int(sys.argv[2]) 
-        except ValueError: 
-            START_INDEX = None 
+    # If the third argument is an int, it represents the starting index.
+
+    if len(sys.argv) >= 3 and sys.argv[2].isnumeric():
+        START_INDEX = int(sys.argv[2]) 
                     
-        if START_INDEX is None or START_INDEX < 1 or START_INDEX > len(model): 
+        if START_INDEX < 1 or START_INDEX > len(model): 
            out = f'Error: starting index "{sys.argv[2]}" must be an integer ' \
                   'in range [1, len(model)]' 
            print(out)
@@ -629,6 +656,39 @@ if __name__ == "__main__":
     # even though they don't affect the output if START_INDEX != 1. This should
     # be changed in the future, TODO. 
     CURRENT_INDEX = 1
+    
+    # There can be other optional non-positional arguments. 
+    for arg in sys.argv:
+        # Remove any leading '-' 
+        while len(arg) > 0 and arg[0] == '-': 
+            arg = arg[1:] 
+
+        eq = arg.find('=') 
+        if eq != -1: 
+            name, value = arg[:eq], arg[eq+1:]
+            if name == 'zero_type': 
+                zero_types = ('none', 'input', 'weight', 'both')
+                if value not in zero_types: 
+                    print(f'Error: zero_type argument must be in ' \
+                          f'{zero_types}, received "{value}"') 
+                    sys.exit(1)
+                else:
+                    ZERO_TYPE = value
+
+            elif name == 'epsilon': 
+                try: 
+                    EPSILON = float(value)
+                except ValueError: 
+                    print(f'Error: epsilon argument must be castable to a ' \
+                          f'float, received "{value}"')
+                    sys.exit(1) 
+                         
+            else:
+                print(f'Error: unrecognized keyword argument "{name}".')
+                sys.exit(1)
+
+    print('EPSILON:', EPSILON)
+    print('ZERO_TYPE:', ZERO_TYPE)
 
     # Images are stored within the "data" directory.
     filenames = []
