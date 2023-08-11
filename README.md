@@ -30,7 +30,7 @@ There are multiple ways to run the project:
 
 To run a classification on an image or set of images (where each layer is executed sequentially, generating `.bin` files along the way), place `.jpg` files into the `data` directory and run: 
 
-`$ python3 run.py <model_type> (<layer_index>) (--zero_type=<zero_type> --epsilon=<epsilon>)`
+`$ python3 run.py <model_type> (<layer_index>) (--data_path=<data_path> --zero_type=<zero_type> --epsilon=<epsilon>)`
 
 Parameters: 
 
@@ -41,6 +41,8 @@ model_type:
 * `-yolov5l`
 
 `layer_index`: The conv operator index in the model to start computation at. If not provided, equals 1. To skip the first _n_ convolutional operations in a network, set this to _n+1_. 
+
+`data_path`: "data/" by default, but can be set to either a directory containing ".jpg" images or a single ".jpg" image. Each of the discovered ".jpg" images will be run through the inference.
 
 `zero_type`: Before tensors are passed to the convolution function, they can be preprocessed by setting values to zero if their absolute value is less than a threshold. This flag determines which tensors to preprocess in this way: 
 * `none`: No values in tensors are zeroed.

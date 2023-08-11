@@ -1,7 +1,7 @@
 ''' run.py
-Executes an inference for images stored within the local "data" directory, 
-yielding a collection of named .bin files representing inputs/outputs to 
-convolution layers. 
+Executes an inference for images (stored either within the "data/" directory or 
+given via command-line argument), yielding a collection of named .bin files 
+representing inputs/outputs to convolution layers. 
 
 Usage: 
   python3 run.py <model_type> (<index>) (--zero_type=<zero_type>) 
@@ -657,6 +657,9 @@ if __name__ == "__main__":
     # be changed in the future, TODO. 
     CURRENT_INDEX = 1
     
+    # By default, pulls the images from the "data/" directory.
+    data_path = 'data/'
+    
     # There can be other optional non-positional arguments. 
     for arg in sys.argv:
         # Remove any leading '-' 
@@ -666,7 +669,15 @@ if __name__ == "__main__":
         eq = arg.find('=') 
         if eq != -1: 
             name, value = arg[:eq], arg[eq+1:]
-            if name == 'zero_type': 
+            
+            if name == 'data_path':
+                if os.path.exists(value):
+                    data_path = value
+                else:
+                    print(f'Error: data path "{data_path}" does not exist.') 
+                    sys.exit(1)
+            
+            elif name == 'zero_type': 
                 zero_types = ('none', 'input', 'weight', 'both')
                 if value not in zero_types: 
                     print(f'Error: zero_type argument must be in ' \
@@ -687,25 +698,34 @@ if __name__ == "__main__":
                 print(f'Error: unrecognized keyword argument "{name}".')
                 sys.exit(1)
 
-    print('EPSILON:', EPSILON)
-    print('ZERO_TYPE:', ZERO_TYPE)
-
     # Images are stored within the "data" directory.
     filenames = []
-    images    = []  
-    if os.path.exists('data'): 
-        pathnames = glob(os.path.join("data", "*.jpg"))
-        for file in sorted(pathnames, key=os.path.basename):
-            # Each model has their own unique "preprocess" method. 
-            tensor = model.preprocess(Image.open(file))
-            name = file[5:] # removes the 'data/' part 
-            filenames.append(name) 
-            images.append(tensor) 
+    images    = []
+    if os.path.exists(data_path):
+        if os.path.isdir(data_path): 
+            pathnames = glob(os.path.join("data", "*.jpg"))
+            for file in sorted(pathnames, key=os.path.basename):
+                # Each model has their own unique "preprocess" method. 
+                tensor = model.preprocess(Image.open(file))
+                name = file[5:] # removes the 'data/' part 
+                filenames.append(name) 
+                images.append(tensor)
+        elif data_path[-4:] == '.jpg':  
+            tensor = model.preprocess(Image.open(data_path))
+            name = data_path if '/' not in data_path \
+                             else data_path[data_path.rindex('/')+1:]
+            filenames.append(name)
+            images.append(tensor)
+        else:
+            print('Error: the given image at "{data_path}" must be a ".jpg".')
+            sys.exit(1)
+    else:
+        print('Error: data path "{data_path}" does not exist.') 
+        sys.exit(1) 
     
     if len(images) == 0:
-        out = 'Error: at least one .jpg image must be stored within the ' \
-              '"data" directory.'
-        print(out) 
+        print('Error: at least one .jpg image must be stored within the ' \
+             f'"{data_path}" path.')
         sys.exit(1) 
         
     # Output bin files are stored within the bin directory. 
