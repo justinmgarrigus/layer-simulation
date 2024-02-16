@@ -12,6 +12,7 @@ _app_cuda_version_*
 _cuobjdump_list_ptx_*
 gpgpu_inst_stats.txt 
 packetWatchOut_.txt
+EXTERN_VARS.temp
 
 slurm/*/.commands*
 slurm/*/.env 

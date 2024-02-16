@@ -345,7 +345,10 @@ class alexnet:
         x = conv2d(x, resultFilePath, alexnet.features[0])  # Conv2D-1
         x = alexnet.features[1](x)                          # ReLU-2
         x = alexnet.features[2](x)                          # MaxPool2D-3 
-    
+   
+        print('  -> Exiting after one layer.') 
+        exit(0)
+
         # PART 2
         
         resultFilePath = "cL2_"
@@ -673,6 +676,8 @@ if __name__ == "__main__":
             if name == 'data_path':
                 if os.path.exists(value):
                     data_path = value
+                    if os.path.isdir(data_path) and data_path[-1] != '/': 
+                        data_path += '/' # Just for formatting later on.
                 else:
                     print(f'Error: data path "{data_path}" does not exist.') 
                     sys.exit(1)
@@ -703,11 +708,11 @@ if __name__ == "__main__":
     images    = []
     if os.path.exists(data_path):
         if os.path.isdir(data_path): 
-            pathnames = glob(os.path.join("data", "*.jpg"))
+            pathnames = glob(os.path.join(data_path, "*.jpg"))
             for file in sorted(pathnames, key=os.path.basename):
                 # Each model has their own unique "preprocess" method. 
                 tensor = model.preprocess(Image.open(file))
-                name = file[5:] # removes the 'data/' part 
+                name = file[len(data_path):] # removes the 'data/' part 
                 filenames.append(name) 
                 images.append(tensor)
         elif data_path[-4:] == '.jpg':  
@@ -717,10 +722,10 @@ if __name__ == "__main__":
             filenames.append(name)
             images.append(tensor)
         else:
-            print('Error: the given image at "{data_path}" must be a ".jpg".')
+            print(f'Error: the given image at "{data_path}" must be a ".jpg".')
             sys.exit(1)
     else:
-        print('Error: data path "{data_path}" does not exist.') 
+        print(f'Error: data path "{data_path}" does not exist.') 
         sys.exit(1) 
     
     if len(images) == 0:
@@ -728,6 +733,8 @@ if __name__ == "__main__":
              f'"{data_path}" path.')
         sys.exit(1) 
         
+    print('Batch size:', len(images)) 
+    
     # Output bin files are stored within the bin directory. 
     required_dirs = [
         'bin', 
