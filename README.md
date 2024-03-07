@@ -12,6 +12,10 @@ Export a new environment variable that points to your local installation of [CUD
 
 `$ export CUTLASS_INSTALL_DIR=path/to/cutlass`
 
+Get the required Python dependencies: 
+
+`$ python3 -m pip install -r requirements.txt`
+
 CMake the project: 
 
 ```
