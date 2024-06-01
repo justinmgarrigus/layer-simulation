@@ -3,3 +3,4 @@ Pillow==9.2.0
 torch==1.12.1
 torchvision==0.13.1
 git+https://github.com/nottombrown/imagenet_stubs
+six
