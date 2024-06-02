@@ -116,70 +116,6 @@ using WmmaGemmTraits = cutlass::gemm::WmmaGemmTraits<
 using Gemm = cutlass::gemm::Gemm<WmmaGemmTraits>;
 typename Gemm::Params params;
 
-// Reads specific values from the file, assigning default values when the file
-// does not exist.
-void read_extern_values(int** data_ptr) {
-    FILE *extern_vars_file = fopen("EXTERN_VARS.temp", "r");
-    if (extern_vars_file == NULL) {
-        *data_ptr = 0; 
-    }
-    else {
-        assert(fscanf(extern_vars_file, "data_ptr=%p\n", data_ptr) != 0); 
-        fclose(extern_vars_file);
-    }  
-
-    printf("UNT (SRC): value received, %p\n", *data_ptr);
-}
-
-// Writes specific values to the file.
-void write_extern_values(
-    char* B_start_ptr, 
-    char* B_end_ptr, 
-    int conv_batch_size, 
-    int conv_input_channels, 
-    int conv_input_rows, 
-    int conv_input_cols, 
-    int conv_filter_rows, 
-    int conv_filter_cols, 
-    int conv_stride_rows, 
-    int conv_stride_cols, 
-    int conv_padding_rows, 
-    int conv_padding_cols, 
-    int conv_output_channels) 
-{
-    FILE *extern_vars_file = fopen("EXTERN_VARS.temp", "w"); 
-    fprintf(extern_vars_file, "B_start_ptr=%p\n", B_start_ptr);
-    fprintf(extern_vars_file, "B_end_ptr=%p\n", B_end_ptr); 
-    fprintf(extern_vars_file, "conv_batch_size=%d\n", conv_batch_size);
-    fprintf(extern_vars_file, "conv_input_channels=%d\n", conv_input_channels);
-    fprintf(extern_vars_file, "conv_input_rows=%d\n", conv_input_rows);
-    fprintf(extern_vars_file, "conv_input_cols=%d\n", conv_input_cols);
-    fprintf(extern_vars_file, "conv_filter_rows=%d\n", conv_filter_rows);
-    fprintf(extern_vars_file, "conv_filter_cols=%d\n", conv_filter_cols);
-    fprintf(extern_vars_file, "conv_stride_rows=%d\n", conv_stride_rows);
-    fprintf(extern_vars_file, "conv_stride_cols=%d\n", conv_stride_cols);
-    fprintf(extern_vars_file, "conv_padding_rows=%d\n", conv_padding_rows);
-    fprintf(extern_vars_file, "conv_padding_cols=%d\n", conv_padding_cols);
-    fprintf(extern_vars_file, "conv_output_channels=%d\n", 
-        conv_output_channels);
-    printf("UNT (SRC): B_start_ptr written, %p\n", B_start_ptr);
-    printf("UNT (SRC): B_end_ptr written, %p\n", B_end_ptr);
-    printf("UNT (SRC): conv_batch_size written, %d\n", conv_batch_size); 
-    printf("UNT (SRC): conv_input_channels written, %d\n", 
-        conv_input_channels); 
-    printf("UNT (SRC): conv_input_rows written, %d\n", conv_input_rows); 
-    printf("UNT (SRC): conv_input_cols written, %d\n", conv_input_cols); 
-    printf("UNT (SRC): conv_filter_rows written, %d\n", conv_filter_rows); 
-    printf("UNT (SRC): conv_filter_cols written, %d\n", conv_filter_cols); 
-    printf("UNT (SRC): conv_stride_rows written, %d\n", conv_stride_rows); 
-    printf("UNT (SRC): conv_stride_cols written, %d\n", conv_stride_cols); 
-    printf("UNT (SRC): conv_padding_rows written, %d\n", conv_padding_rows); 
-    printf("UNT (SRC): conv_padding_cols written, %d\n", conv_padding_cols); 
-    printf("UNT (SRC): conv_output_channels written, %d\n", 
-        conv_output_channels); 
-    fclose(extern_vars_file);
-}
-
 int main(int argc, char **argv) {
     option const long_opts[] = {
         { "x", required_argument, nullptr, 'x' },
@@ -257,42 +193,29 @@ int main(int argc, char **argv) {
 
         half *B_d = B.device_data();
 
-        // The extern_vars file shouldn't initially exist. It may exist if 
-        // it wasn't cleaned from the previous simulator session. 
-        remove("EXTERN_VARS.temp"); 
-
-        // Pass values into the simulator to indicate the status of the 
-        // convolution kernel. Most of the parameters will be hard-coded into
-        // this (TODO). 
+        // An "EXTERN_VARS.temp" file is used to pass parameters into the 
+        // simulator. This file should already have some values passed in from 
+        // the python script, which contains convolutional-layer information. 
+        // Alongside those, we should pass in the pointer to the B (lowered) 
+        // matrix, so we may be able to detect when an accessed byte is from 
+        // the B matrix.
         char *B_start_ptr = (char*)B.device_data(); 
         char *B_end_ptr = B_start_ptr + sizeof(half) * x.rows() * x.cols(); 
-        int conv_batch_size = 1; 
-        int conv_input_channels = 3; 
-        int conv_input_rows = 224; 
-        int conv_input_cols = 224; 
-        int conv_filter_rows = 11; 
-        int conv_filter_cols = 11; 
-        int conv_stride_rows = 4; 
-        int conv_stride_cols = 4; 
-        int conv_padding_rows = 2; 
-        int conv_padding_cols = 2; 
-        int conv_output_channels = 64; 
-        write_extern_values(
-            B_start_ptr,
-            B_end_ptr, 
-            conv_batch_size, 
-            conv_input_channels, 
-            conv_input_rows,
-            conv_input_cols, 
-            conv_filter_rows,
-            conv_filter_cols, 
-            conv_stride_rows, 
-            conv_stride_cols, 
-            conv_padding_rows,
-            conv_padding_cols, 
-            conv_output_channels
-        );
-    
+        
+        // Note that the distinction of a "pointer type" (asterisk) for data 
+        // doesn't exist in GPGPU-Sim, and it certainly shouldn't exist between
+        // two different programs (e.g., communicated through a separate file), 
+        // so we're keeping it in GPGPU-Sim's preferred long-long-int method of
+        // representing pointers. 
+        unsigned long long B_start_ptr_llu = (unsigned long long)B_start_ptr; 
+        unsigned long long B_end_ptr_llu = (unsigned long long)B_end_ptr; 
+
+        // Append these to the pre-existing "EXTERN_VARS.temp" file. 
+        FILE *extern_vars_file = fopen("EXTERN_VARS.temp", "a"); 
+        fprintf(extern_vars_file, "B_start_ptr=%llu\n", B_start_ptr_llu);
+        fprintf(extern_vars_file, "B_end_ptr=%llu\n", B_end_ptr_llu); 
+        fclose(extern_vars_file); 
+        
         Gemm::launch(params);
         C.sync_host();
     

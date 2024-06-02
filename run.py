@@ -517,6 +517,26 @@ def conv2d(x, layer_name, module) -> torch.Tensor:
     weight = module.weight.detach()
     x = x.detach()
 
+    # Before we run the GEMM in the simulator, we need to tell the 
+    # simulator the convolutional parameters it needs to obatin the element
+    # ID and other values from a single address. These parameters are 
+    # written to an "EXTERN_VARS.temp" file that the simulator can read. 
+    # The "gemm" executable below might append more parameters to this file 
+    # if required. 
+    extern_vars_file = open('EXTERN_VARS.temp', 'w') 
+    extern_vars_file.write(f'conv_batch_size={x.size(dim=0)}\n')
+    extern_vars_file.write(f'conv_input_channels={x.size(dim=1)}\n')
+    extern_vars_file.write(f'conv_input_rows={x.size(dim=2)}\n')
+    extern_vars_file.write(f'conv_input_cols={x.size(dim=3)}\n')
+    extern_vars_file.write(f'conv_filter_rows={weight.size(dim=2)}\n')
+    extern_vars_file.write(f'conv_filter_cols={weight.size(dim=3)}\n')
+    extern_vars_file.write(f'conv_stride_rows={module.stride[0]}\n')
+    extern_vars_file.write(f'conv_stride_cols={module.stride[1]}\n')
+    extern_vars_file.write(f'conv_padding_rows={module.padding[0]}\n')
+    extern_vars_file.write(f'conv_padding_cols={module.padding[1]}\n')
+    extern_vars_file.write(f'conv_output_channels={weight.size(dim=0)}\n')
+    extern_vars_file.close()
+
     out_n = x.size(dim=0)
     out_c = weight.size(dim=0)
     out_h = math.floor(((x.size(dim=2) + 2 * module.padding[0] - module.dilation[0] * (
@@ -560,8 +580,8 @@ def conv2d(x, layer_name, module) -> torch.Tensor:
         output_file = open(output_file_path, 'w') 
         
         error_file_path = f'output/{MODEL_NAME}/error/{layer_name}.txt'
-        error_file = open(error_file_path, 'w')
-        
+        error_file = open(error_file_path, 'w') 
+
         print(f'Starting gemm on layer "{layer_name}"')
         subprocess.run(
             [
